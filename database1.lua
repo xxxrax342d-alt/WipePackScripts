@@ -13,8 +13,8 @@ local hasCanister = false
 local hasPorcelain = false
 local hasSpawnedCombo = false
 local comboCounter = 0
-local spawnTimer = nil
 
+-- Интерфейс
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "ComboCounter"
 screenGui.Parent = game:GetService("CoreGui")
@@ -128,66 +128,20 @@ spawn(function()
             if comboCounter > 5 then comboCounter = 1 end
             updateCounterDisplay()
             print("📊 Счетчик комбо:", comboCounter)
+
+            -- После исчезновения комбо ждём 15 секунд и проверяем условия
+            task.spawn(function()
+                local lostTime = coconutLostTime
+                task.wait(15)
+                -- Проверяем, что за 15 секунд не появилось новое комбо (иначе таймер сбросится)
+                if coconutActive then return end
+                if lastValue == 39 and comboCounter == ACCOUNT_ID and not hasSpawnedCombo then
+                    print("🎯 Аккаунт " .. ACCOUNT_ID .. " кидает КОМБО через 15 сек после исчезновения")
+                    SpawnCoconut(true)
+                end
+            end)
         end
         task.wait(0.5)
-    end
-end)
-
--- Функция для запуска таймера спавна комбо
-local function startSpawnTimer()
-    if spawnTimer then
-        task.cancel(spawnTimer)
-        spawnTimer = nil
-    end
-    spawnTimer = task.spawn(function()
-        task.wait(15)
-        if lastValue == 39 and comboCounter == ACCOUNT_ID and not hasSpawnedCombo then
-            print("🎯 Аккаунт " .. ACCOUNT_ID .. " кидает КОМБО по таймеру")
-            SpawnCoconut(true)
-        end
-        spawnTimer = nil
-    end)
-end
-
--- Основной обработчик событий комбо
-require(ReplicatedStorage.Events).ClientListen("PlayerAbilityEvent", function(data)
-    for tag, info in pairs(data) do
-        if tag == "Combo Coconuts" or tag == "ComboCoconuts" then
-            if info.Action == "Update" then
-                local value = info.Values and info.Values[1] or 0
-
-                -- Сброс флага спавна и отмена таймера, если значение упало ниже 39
-                if value < 39 then
-                    hasSpawnedCombo = false
-                    if spawnTimer then
-                        task.cancel(spawnTimer)
-                        spawnTimer = nil
-                    end
-                end
-
-                -- Фарфор надевается всегда на 39
-                if value == 39 and not hasPorcelain then
-                    EquipPorcelain()
-                end
-
-                -- Канистра надевается при значении <39
-                if value < 39 and not hasCanister then
-                    EquipCanister()
-                end
-
-                -- Обычные кокосы на 11, 17, 23
-                if value == 11 or value == 17 or value == 23 then
-                    SpawnCoconut(false)
-                end
-
-                -- Если достигли 39, не спавнили ещё, и наша очередь
-                if value == 39 and not hasSpawnedCombo and comboCounter == ACCOUNT_ID then
-                    startSpawnTimer()
-                end
-
-                lastValue = value
-            end
-        end
     end
 end)
 
@@ -201,11 +155,44 @@ spawn(function()
     end
 end)
 
+-- Основной обработчик событий комбо
+require(ReplicatedStorage.Events).ClientListen("PlayerAbilityEvent", function(data)
+    for tag, info in pairs(data) do
+        if tag == "Combo Coconuts" or tag == "ComboCoconuts" then
+            if info.Action == "Update" then
+                local value = info.Values and info.Values[1] or 0
+
+                -- Сброс флага спавна, если значение упало ниже 39
+                if value < 39 then
+                    hasSpawnedCombo = false
+                end
+
+                -- Фарфор надевается всегда на 39
+                if value == 39 and not hasPorcelain then
+                    EquipPorcelain()
+                end
+
+                -- Канистра надевается при значении <39
+                if value < 39 and not hasCanister then
+                    EquipCanister()
+                end
+
+                -- Обычные кокосы на 11, 17, 23 (значение 5 убрали)
+                if value == 11 or value == 17 or value == 23 then
+                    SpawnCoconut(false)
+                end
+
+                lastValue = value
+            end
+        end
+    end
+end)
+
 updateCounterDisplay()
 print("========================================")
 print("✅ Аккаунт " .. ACCOUNT_ID .. " запущен")
 print("📊 Счетчик комбо:", comboCounter)
-print("🎯 Комбо кидается через 15 сек после готовности (39 + очередь)")
+print("🎯 Комбо кидается через 15 сек после исчезновения, если значение=39 и очередь=" .. ACCOUNT_ID)
 print("🍶 Фарфор надевается на 39 всегда")
 print("🥥 Канистра надевается при <39 всегда")
 print("⏱️ Через 11 сек после комбо кидается обычный кокос (обновляет значение)")
