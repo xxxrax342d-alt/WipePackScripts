@@ -13,8 +13,8 @@ local hasCanister = false
 local hasPorcelain = false
 local hasSpawnedCombo = false
 local comboCounter = 0
+local spawnTimer = nil
 
--- Интерфейс
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "ComboCounter"
 screenGui.Parent = game:GetService("CoreGui")
@@ -92,7 +92,7 @@ function SpawnCoconut(isCombo)
     if isCombo then
         print("✅ Аккаунт " .. ACCOUNT_ID .. " КОМБО КОКОС (очередь " .. comboCounter .. ")")
         hasSpawnedCombo = true
-        -- Через 11 секунд после комбо кидаем обычный кокос (чтобы обновить значение и надеть канистру)
+        -- Через 11 секунд кидаем обычный кокос для обновления значения
         task.spawn(function()
             task.wait(11)
             SpawnCoconut(false)
@@ -128,26 +128,26 @@ spawn(function()
             if comboCounter > 5 then comboCounter = 1 end
             updateCounterDisplay()
             print("📊 Счетчик комбо:", comboCounter)
-
-            -- После исчезновения комбо проверяем, не должны ли мы кинуть своё
-            if comboCounter == ACCOUNT_ID and lastValue == 39 and not hasSpawnedCombo then
-                print("🎯 Аккаунт " .. ACCOUNT_ID .. " кидает КОМБО сразу после исчезновения")
-                SpawnCoconut(true)
-            end
         end
         task.wait(0.5)
     end
 end)
 
--- Страховка канистры (каждые 5 секунд, если значение не 39 и не надета)
-spawn(function()
-    while true do
-        if lastValue ~= 39 and currentAccessory ~= "canister" then
-            EquipCanister()
-        end
-        task.wait(5)
+-- Функция для запуска таймера спавна комбо
+local function startSpawnTimer()
+    if spawnTimer then
+        task.cancel(spawnTimer)
+        spawnTimer = nil
     end
-end)
+    spawnTimer = task.spawn(function()
+        task.wait(15)
+        if lastValue == 39 and comboCounter == ACCOUNT_ID and not hasSpawnedCombo then
+            print("🎯 Аккаунт " .. ACCOUNT_ID .. " кидает КОМБО по таймеру")
+            SpawnCoconut(true)
+        end
+        spawnTimer = nil
+    end)
+end
 
 -- Основной обработчик событий комбо
 require(ReplicatedStorage.Events).ClientListen("PlayerAbilityEvent", function(data)
@@ -156,9 +156,13 @@ require(ReplicatedStorage.Events).ClientListen("PlayerAbilityEvent", function(da
             if info.Action == "Update" then
                 local value = info.Values and info.Values[1] or 0
 
-                -- Сброс флага спавна, если значение упало ниже 39
+                -- Сброс флага спавна и отмена таймера, если значение упало ниже 39
                 if value < 39 then
                     hasSpawnedCombo = false
+                    if spawnTimer then
+                        task.cancel(spawnTimer)
+                        spawnTimer = nil
+                    end
                 end
 
                 -- Фарфор надевается всегда на 39
@@ -171,15 +175,14 @@ require(ReplicatedStorage.Events).ClientListen("PlayerAbilityEvent", function(da
                     EquipCanister()
                 end
 
-                -- Обычные кокосы на значениях 11, 17, 23 (значение 5 убрали)
+                -- Обычные кокосы на 11, 17, 23
                 if value == 11 or value == 17 or value == 23 then
                     SpawnCoconut(false)
                 end
 
-                -- Если достигли 39, наша очередь, и комбо не активно → кидаем немедленно
-                if value == 39 and not hasSpawnedCombo and comboCounter == ACCOUNT_ID and not coconutActive then
-                    print("🎯 Аккаунт " .. ACCOUNT_ID .. " кидает КОМБО сразу после набивки 39 (очередь " .. comboCounter .. ")")
-                    SpawnCoconut(true)
+                -- Если достигли 39, не спавнили ещё, и наша очередь
+                if value == 39 and not hasSpawnedCombo and comboCounter == ACCOUNT_ID then
+                    startSpawnTimer()
                 end
 
                 lastValue = value
@@ -188,11 +191,21 @@ require(ReplicatedStorage.Events).ClientListen("PlayerAbilityEvent", function(da
     end
 end)
 
+-- Страховка канистры (каждые 5 секунд)
+spawn(function()
+    while true do
+        if lastValue ~= 39 and currentAccessory ~= "canister" then
+            EquipCanister()
+        end
+        task.wait(5)
+    end
+end)
+
 updateCounterDisplay()
 print("========================================")
 print("✅ Аккаунт " .. ACCOUNT_ID .. " запущен")
 print("📊 Счетчик комбо:", comboCounter)
-print("🎯 Комбо кидается, если очередь=" .. ACCOUNT_ID .. " И значение=39 И комбо не активно")
+print("🎯 Комбо кидается через 15 сек после готовности (39 + очередь)")
 print("🍶 Фарфор надевается на 39 всегда")
 print("🥥 Канистра надевается при <39 всегда")
 print("⏱️ Через 11 сек после комбо кидается обычный кокос (обновляет значение)")
