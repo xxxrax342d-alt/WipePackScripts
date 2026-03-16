@@ -13,7 +13,6 @@ local hasCanister = false
 local hasPorcelain = false
 local hasSpawnedCombo = false
 local comboCounter = 0
-local pendingCanister = false  -- флаг, что нужно надеть канистру после обновления
 
 -- Интерфейс
 local screenGui = Instance.new("ScreenGui")
@@ -92,7 +91,12 @@ function SpawnCoconut(isCombo)
     game:GetService("ReplicatedStorage"):WaitForChild("Events"):WaitForChild("PlayerActivesCommand"):FireServer(unpack(args))
     if isCombo then
         print("✅ Аккаунт " .. ACCOUNT_ID .. " КОМБО КОКОС (очередь " .. comboCounter .. ")")
-        pendingCanister = true  -- после комбо нужно будет надеть канистру
+        hasSpawnedCombo = true
+        -- Через 11 секунд после комбо кидаем обычный кокос (чтобы обновить значение и надеть канистру)
+        task.spawn(function()
+            task.wait(11)
+            SpawnCoconut(false)
+        end)
     else
         print("🥥 Аккаунт " .. ACCOUNT_ID .. " обычный кокос")
     end
@@ -129,7 +133,6 @@ spawn(function()
             if comboCounter == ACCOUNT_ID and lastValue == 39 and not hasSpawnedCombo then
                 print("🎯 Аккаунт " .. ACCOUNT_ID .. " кидает КОМБО сразу после исчезновения")
                 SpawnCoconut(true)
-                hasSpawnedCombo = true
             end
         end
         task.wait(0.5)
@@ -141,11 +144,6 @@ spawn(function()
     while true do
         if lastValue ~= 39 and currentAccessory ~= "canister" then
             EquipCanister()
-        end
-        -- Если ждёт pendingCanister, но значение уже обновилось и <39, то надень (на случай если событие не сработало)
-        if pendingCanister and lastValue ~= 39 then
-            EquipCanister()
-            pendingCanister = false
         end
         task.wait(5)
     end
@@ -173,14 +171,8 @@ require(ReplicatedStorage.Events).ClientListen("PlayerAbilityEvent", function(da
                     EquipCanister()
                 end
 
-                -- Если ждали канистру после комбо и значение стало <39, надеваем
-                if pendingCanister and value < 39 then
-                    EquipCanister()
-                    pendingCanister = false
-                end
-
-                -- Обычные кокосы на промежуточных значениях
-                if value == 5 or value == 11 or value == 17 or value == 23 then
+                -- Обычные кокосы на значениях 11, 17, 23 (значение 5 убрали)
+                if value == 11 or value == 17 or value == 23 then
                     SpawnCoconut(false)
                 end
 
@@ -188,7 +180,6 @@ require(ReplicatedStorage.Events).ClientListen("PlayerAbilityEvent", function(da
                 if value == 39 and not hasSpawnedCombo and comboCounter == ACCOUNT_ID and not coconutActive then
                     print("🎯 Аккаунт " .. ACCOUNT_ID .. " кидает КОМБО сразу после набивки 39 (очередь " .. comboCounter .. ")")
                     SpawnCoconut(true)
-                    hasSpawnedCombo = true
                 end
 
                 lastValue = value
@@ -203,5 +194,6 @@ print("✅ Аккаунт " .. ACCOUNT_ID .. " запущен")
 print("📊 Счетчик комбо:", comboCounter)
 print("🎯 Комбо кидается, если очередь=" .. ACCOUNT_ID .. " И значение=39 И комбо не активно")
 print("🍶 Фарфор надевается на 39 всегда")
-print("🥥 Канистра надевается при <39 всегда и после комбо по событию")
+print("🥥 Канистра надевается при <39 всегда")
+print("⏱️ Через 11 сек после комбо кидается обычный кокос (обновляет значение)")
 print("========================================")
