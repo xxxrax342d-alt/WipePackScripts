@@ -3,11 +3,24 @@ require(ReplicatedStorage.Events).ClientListen("PlayerAbilityEvent", function(da
         if tag == "Combo Coconuts" or tag == "ComboCoconuts" then
             if info.Action == "Update" then
                 local value = info.Values and info.Values[1] or 0
-                
                 if value == 30 then
-                    game:GetService("ReplicatedStorage").Events.ItemPackageEvent:InvokeServer("Equip", {Category="Accessory", Type="Petal Belt"})
+                    -- Надеваем Petal Belt
+                    game:GetService("ReplicatedStorage").Events.ItemPackageEvent:InvokeServer(table.unpack({
+                        [1] = "Equip",
+                        [2] = {
+                            ["Category"] = "Accessory",
+                            ["Type"] = "Petal Belt",
+                        },
+                    }))
                     task.wait(0.5)
-                    game:GetService("ReplicatedStorage").Events.ItemPackageEvent:InvokeServer("Equip", {Category="Accessory", Type="Coconut Belt"})
+                    -- Надеваем Coconut Belt
+                    game:GetService("ReplicatedStorage").Events.ItemPackageEvent:InvokeServer(table.unpack({
+                        [1] = "Equip",
+                        [2] = {
+                            ["Category"] = "Accessory",
+                            ["Type"] = "Coconut Belt",
+                        },
+                    }))
                 end
             end
         end
